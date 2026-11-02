@@ -79,6 +79,17 @@ function guestCard(g) {
 
     return $card;
 }
+var sortOn = {};
+
+function toggleSortRoom(roomId) {
+    var room = party.find(r => r.id === roomId);
+    sortOn[roomId] = !sortOn[roomId];
+    var list = sortOn[roomId]
+        ? room.guests.slice().sort((a, b) => a.time.localeCompare(b.time))
+        : room.guests;
+    var $list = $('#' + roomId + ' .guests').empty();
+    list.forEach(g => $list.append(guestCard(g)));
+}
 
 function buildParty() {
     var $floors = $('#floors').empty();
@@ -92,7 +103,9 @@ function buildParty() {
             var $room = $('<section class="room"></section>')
                 .attr({ id: room.id, 'data-name': room.name, 'data-floor': room.floor })
                 .append($('<h3></h3>').text(room.name))
-                .append($('<button class="sort-btn">Sort by time</button>'));
+                .append($('<button class="sort-btn">Sort by time</button>').click(function () {
+                    toggleSortRoom(room.id);
+                }));
 
             var $list = $('<div class="guests"></div>').appendTo($room);
             $.each(room.guests, function (k, g) {
@@ -128,17 +141,13 @@ var cases = [
 ];
 
 function applySpotlight($found) {
-    $('.guest, .room').addClass('pale').stop(true, true);
-    if ($found.is('.room')) {
-        $found.removeClass('pale');
-        $found.find('.guest').removeClass('pale');
-    } else {
-        $found.removeClass('pale').parents('.room').removeClass('pale');
-    }
+    var $keep = $found.is('.room') ? $found.find('.guest') : $found;
+    $('.guest').stop(true, true).fadeTo(300, 0.2);
+    $keep.stop(true, true).fadeTo(300, 1);
 }
 
 function clearSpotlight() {
-    $('.guest, .room').removeClass('pale');
+    $('.guest').stop(true, true).fadeTo(300, 1);
     $('.case').removeClass('active');
     $('#result').find('.result-title').text('Result');
     $('#result').find('.result-names').text('Click a case below to start.');
