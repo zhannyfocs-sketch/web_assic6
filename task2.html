@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 2.</title>
+    <link rel="stylesheet" href="css/task2.css">
+</head>
+<body>
+    <header class="top">
+        <h1>Task 2.</h1>
+    </header>
+
+    <main class="layout">
+        <section class="house-section">
+            <div class="house">
+                <div class="roof"><span class="sign">The Party, 19:30 - 22:30</span></div>
+                <div id="floors"></div>
+                <div class="ground"></div>
+            </div>
+
+            <div class="legend">
+                <span class="dots">
+                    <i class="dot blue"></i>
+                    <i class="dot red"></i>
+                    <i class="dot green"></i>
+                    <i class="dot black"></i>
+                    <i class="dot yellow"></i>
+                    <i class="dot purple"></i>
+                </span> Clothing color
+                <span>📱 Phone</span>
+                <span>👓 Glasses</span>
+                <span>👜 Bag</span>
+                <span>🥤 Cup</span>
+                <span>🍪 Cake crumbs</span>
+                <span>🕒 Arrival time</span>
+                <span><i class="badge-mini">🎓</i> AITU student</span>
+            </div>
+        </section>
+
+        <section class="controls-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h2 class="cases-title" style="margin: 0;">Cases</h2>
+                <button id="clearBtn" style="padding: 5px 12px; background: var(--red); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Clear Spotlight</button>
+            </div>
+
+            <div id="result" class="result">
+                <div class="result-title">Result</div>
+                <div class="result-names">Click a case below to start.</div>
+            </div>
+
+            <div id="cases" class="cases"></div>
+        </section>
+    </main>
+    <div id="modal-backdrop"></div>
+    <div id="guest-modal"></div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="js/task2.js"></script>
+</body>
+</html>
