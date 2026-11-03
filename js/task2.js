@@ -48,6 +48,12 @@ var iconNames = { phone: 'phone', glasses: 'glasses', bag: 'bag', cup: 'cup', cr
 function avatarUrl(g) {
     return 'https://api.dicebear.com/9.x/open-peeps/svg?seed=' + g.name;
 }
+var MOVE_MS = 900;
+var SORT_MS = 600;
+var MODAL_MS = 300;
+var sortOn = {};
+var openId = null;
+var EFFECT_CASES = [18, 19];
 
 function guestCard(g) {
     var $card = $('<div class="guest"></div>')
@@ -79,36 +85,46 @@ function guestCard(g) {
 
     return $card;
 }
-var sortOn = {};
+function roomById(id) {
+    return party.find(function (r) { return r.id === id; });
+}
 
-function toggleSortRoom(roomId) {
-    var room = party.find(r => r.id === roomId);
-    sortOn[roomId] = !sortOn[roomId];
-    var list = sortOn[roomId]
-        ? room.guests.slice().sort((a, b) => a.time.localeCompare(b.time))
-        : room.guests;
-    var $list = $('#' + roomId + ' .guests').empty();
-    list.forEach(g => $list.append(guestCard(g)));
+function findGuest(name) {
+    var found = null;
+    party.forEach(function (room) {
+        room.guests.forEach(function (g, index) {
+            if (g.name === name) {
+                found = { guest: g, room: room, index: index };
+            }
+        });
+    });
+    return found;
+}
+
+function roomOrder(room) {
+    if (!sortOn[room.id]) return room.guests;
+    return room.guests.slice().sort(function (a, b) {
+        return a.time.localeCompare(b.time);
+    });
 }
 
 function buildParty() {
     var $floors = $('#floors').empty();
-    $.each([2, 1], function (i, floor) {
+    [2, 1].forEach(function (floor) {
         var $floor = $('<div class="floor"></div>')
             .attr('data-floor', floor)
             .append($('<div class="floor-label"></div>').text('Floor ' + floor));
 
-        $.each(party, function (j, room) {
+        party.forEach(function (room) {
             if (room.floor !== floor) return;
             var $room = $('<section class="room"></section>')
                 .attr({ id: room.id, 'data-name': room.name, 'data-floor': room.floor })
                 .append($('<h3></h3>').text(room.name))
-                .append($('<button class="sort-btn">Sort by time</button>').click(function () {
-                    toggleSortRoom(room.id);
-                }));
+                .append($('<button class="sort-btn"></button>')
+                    .text(sortOn[room.id] ? 'Picture order' : 'Sort by time'));
 
             var $list = $('<div class="guests"></div>').appendTo($room);
-            $.each(room.guests, function (k, g) {
+            roomOrder(room).forEach(function (g) {
                 $list.append(guestCard(g));
             });
             $floor.append($room);
@@ -153,83 +169,147 @@ function clearSpotlight() {
     $('#result').find('.result-names').text('Click a case below to start.');
 }
 
-function openGuestModal(guestName, $cardElem) {
-    var foundGuest = null;
-    var foundRoomId = null;
-    
-    $.each(party, function(i, room) {
-        $.each(room.guests, function(j, g) {
-            if (g.name.toLowerCase() === guestName.toLowerCase()) {
-                foundGuest = g;
-                foundRoomId = room.id;
-            }
-        });
-    });
+function modalHtml(g, roomId) {
+    var things = g.things.length
+        ? g.things.map(function (t) { return iconNames[t]; }).join(', ')
+        : 'Nothing at all';
 
-    if (!foundGuest) return;
+    var moves = party
+        .filter(function (r) { return r.id !== roomId; })
+        .map(function (r) {
+            return '<button class="move-btn" data-guest="' + g.name + '" data-to="' + r.id + '">To ' + r.name + '</button>';
+        })
+        .join('');
 
-    var offset = $cardElem.find('.avatar').offset();
+    return '<img class="modal-avatar" src="' + avatarUrl(g) + '" alt="' + g.name + '">' +
+        '<h3>' + g.name + '</h3>' +
+        '<p>Came at ' + g.time + '</p>' +
+        '<p>' + (g.aitu ? 'AITU student' : 'Not an AITU student') + '</p>' +
+        '<p>Things: ' + things + '</p>' +
+        '<div class="modal-moves"><p>Move to:</p>' + moves + '</div>';
+}
+
+function openGuestModal(name, $card) {
+    var found = findGuest(name);
+    if (!found) return;
+
+    closeGuestModal(true);
+    openId = found.guest.name.toLowerCase();
+
     var $modal = $('#guest-modal');
-    
-    $modal.html(`
-        <img src="${avatarUrl(foundGuest)}" style="width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--wall);">
-        <h3>${foundGuest.name}</h3>
-        <p>Came at ${foundGuest.time}</p>
-        <p>${foundGuest.aitu ? 'AITU student' : 'Not an AITU student'}</p>
-        <p>Things: ${foundGuest.things.length > 0 ? foundGuest.things.map(t => iconNames[t]).join(', ') : 'Nothing at all'}</p>
-        <div class="modal-actions" style="margin-top: 15px;">
-            <p style="font-size: 11px; font-weight: bold; margin: 4px 0;">Move to room:</p>
-            <div style="display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;">
-                ${party.map(r => r.id !== foundRoomId ? `<button class="move-btn" data-guest="${foundGuest.name}" data-to="${r.id}" style="padding: 4px 8px; background: var(--blue); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">To ${r.name}</button>` : '').join('')}
-            </div>
-        </div>
-    `).css({
-        top: offset ? offset.top + 'px' : '50%',
-        left: offset ? offset.left + 'px' : '50%',
-        width: '50px',
-        height: '50px',
-        opacity: 0
-    }).show();
+    $modal.html(modalHtml(found.guest, found.room.id))
+        .css({ display: 'block', left: 0, top: 0, width: 280, height: 'auto', opacity: 1, overflow: '' });
+    $modal.find('.modal-avatar').css({ width: 60, height: 60, borderRadius: '50%' });
+
+    var finalH = $modal.outerHeight();
+    var finalL = (window.innerWidth - 280) / 2;
+    var finalT = (window.innerHeight - finalH) / 2;
+
+    var r = $card.find('.avatar')[0].getBoundingClientRect();
+    $modal.css({
+        left: r.left + r.width / 2 - 25,
+        top: r.top + r.height / 2 - 25,
+        width: 50,
+        height: 50,
+        opacity: 0,
+        overflow: 'hidden'
+    });
 
     $('#modal-backdrop').fadeIn(200);
-    $modal.stop(true, true).animate({
-        top: '50%',
-        left: '50%',
-        marginLeft: '-140px',
-        marginTop: '-120px',
-        width: '280px',
-        height: 'auto',
+
+    $modal.animate({
+        left: finalL,
+        top: finalT,
+        width: 280,
+        height: finalH,
         opacity: 1
-    }, 300);
-}
-
-function closeGuestModal() {
-    $('#guest-modal').stop(true, true).fadeOut(200, function() {
-        $('#modal-backdrop').fadeOut(200);
+    }, MODAL_MS, function () {
+        $(this).css({ height: '', overflow: '' });
     });
 }
-function moveGuest(guestName, targetRoomId) {
-    var sourceRoom = null, guestObj = null, guestIndex = -1;
-    
-    $.each(party, function(i, room) {
-        $.each(room.guests, function(j, g) {
-            if (g.name.toLowerCase() === guestName.toLowerCase()) {
-                sourceRoom = room;
-                guestObj = g;
-                guestIndex = j;
-            }
+
+function closeGuestModal(instant) {
+    if (!openId) return;
+
+    var $modal = $('#guest-modal');
+    var $backdrop = $('#modal-backdrop');
+    var $avatar = $('#' + openId + ' .avatar');
+    openId = null;
+
+    if (instant) {
+        $modal.stop(true, false).hide();
+        $backdrop.stop(true, false).hide();
+        return;
+    }
+
+    $backdrop.stop(true, false).fadeOut(200);
+    $modal.stop(true, false).css('overflow', 'hidden');
+
+    if ($avatar.length) {
+        var r = $avatar[0].getBoundingClientRect();
+        $modal.animate({
+            left: r.left + r.width / 2 - 25,
+            top: r.top + r.height / 2 - 25,
+            width: 50,
+            height: 50,
+            opacity: 0
+        }, MODAL_MS, function () {
+            $(this).hide().css({ overflow: '', height: '' });
         });
+    } else {
+        $modal.fadeOut(200);
+    }
+}
+function moveGuest(name, targetId) {
+    var found = findGuest(name);
+    var target = roomById(targetId);
+    if (!found || !target || found.room.id === target.id) return;
+
+    var id = found.guest.name.toLowerCase();
+    var $old = $('#' + id);
+    var start = $old.offset();
+
+    var followers = $old.nextAll('.guest').map(function () { return this.id; }).get();
+
+    closeGuestModal(true);
+
+    found.room.guests.splice(found.index, 1);
+    target.guests.push(found.guest);
+    sortOn[target.id] = false;
+
+    buildParty();
+    var $new = $('#' + id);
+    var end = $new.offset();
+
+    followers.forEach(function (fid) {
+        $('#' + fid).css('margin-left', 76).animate({ marginLeft: 0 }, MOVE_MS);
     });
 
-    var targetRoom = party.find(r => r.id === targetRoomId);
-    if (!sourceRoom || !targetRoom || sourceRoom.id === targetRoom.id) return;
+    $new.css({ width: 0, opacity: 0, overflow: 'hidden' })
+        .animate({ width: 72, opacity: 1 }, MOVE_MS, function () {
+            $(this).css({ width: '', opacity: '', overflow: '' });
+        });
 
-    sourceRoom.guests.splice(guestIndex, 1);
-    targetRoom.guests.push(guestObj);
+    if (start && end) {
+        var $fly = guestCard(found.guest)
+            .removeAttr('id')
+            .css({
+                position: 'absolute',
+                left: start.left,
+                top: start.top,
+                width: 72,
+                margin: 0,
+                zIndex: 2000,
+                pointerEvents: 'none'
+            })
+            .appendTo('body');
 
-    closeGuestModal();
-    buildParty();
+        $fly.animate({ left: end.left, top: end.top }, MOVE_MS, function () {
+            $(this).remove();
+        });
+    }
 }
+
 var sortedRooms = {};
 function toggleSortRoom(roomId) {
     var roomData = party.find(r => r.id === roomId);
@@ -254,6 +334,8 @@ function toggleSortRoom(roomId) {
 $(function () {
     buildParty();
 
+    $('#modal-backdrop').css('pointer-events', 'none');
+
     $.each(cases, function (i, c) {
         $('<button class="case"></button>')
             .attr('data-case', i + 1)
@@ -266,46 +348,51 @@ $(function () {
         var n = $(this).data('case');
         $('.case').removeClass('active');
         $(this).addClass('active');
+
         buildParty();
-        var $found = cases[n - 1].find();
-        
-        applySpotlight($found);
-        
+        var c = cases[n - 1];
+        var $found = c.find();
         var isRooms = $found.is('.room');
-        var names = $found.map(function () { return $(this).data('name') || $(this).data('room'); }).get();
-        var $jumpers = isRooms ? $found.find('.guest') : $found;
-        
-        $jumpers.stop(true, true).animate({ top: -14 }, 150).animate({ top: 0 }, 150);
+        $found.addClass('found');
 
-        var word = isRooms ? 'room' : 'guest';
-        if (names.length !== 1) word += 's';
+        if (EFFECT_CASES.indexOf(n) === -1) {
+            applySpotlight($found);
+            var $jumpers = isRooms ? $found.find('.guest') : $found;
+            $jumpers.stop(true, true).animate({ top: -14 }, 150).animate({ top: 0 }, 150);
+        }
 
-        $('#result').find('.result-title').text('Case ' + n + ': ' + c.q);
-        $('#result').find('.result-names').text('Found (' + names.length + ' ' + word + '): ' + (names.join(', ') || '-'));
+        var names = $found.map(function () {
+            return $(this).attr('data-name');
+        }).get();
+        var word = (isRooms ? 'room' : 'guest') + (names.length === 1 ? '' : 's');
+
+        $('#result .result-title').text('Case ' + n + ': ' + c.q);
+        $('#result .result-names').text('Found (' + names.length + ' ' + word + '): ' + (names.join(', ') || '-'));
     });
 
-    $('#clearBtn').click(function() {
-        clearSpotlight();
-    });
-    $(document).on('click', '.guest', function(e) {
-        e.stopPropagation();
-        openGuestModal($(this).data('name'), $(this));
+    $('#clearBtn').on('click', clearSpotlight);
+
+    $(document).on('click', '.guest', function () {
+        openGuestModal($(this).attr('data-name'), $(this));
     });
 
-    $('#modal-backdrop').click(function() {
-        closeGuestModal();
+    $(document).on('click', '.move-btn', function () {
+        moveGuest($(this).attr('data-guest'), $(this).attr('data-to'));
     });
 
-    $(document).keydown(function(e) {
-        if (e.key === "Escape") {
+    $(document).on('click', '.sort-btn', function () {
+        toggleSortRoom($(this).closest('.room').attr('id'));
+    });
+
+    $(document).on('click', function (e) {
+        if (!$(e.target).closest('#guest-modal, .guest').length) {
             closeGuestModal();
         }
     });
-    $(document).on('click', '.move-btn', function() {
-        moveGuest($(this).data('guest'), $(this).data('to'));
-    });
-    $(document).on('click', '.sort-btn', function() {
-        var roomId = $(this).closest('.room').attr('id');
-        toggleSortRoom(roomId);
+
+    $(document).on('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closeGuestModal();
+        }
     });
 });
